@@ -5,25 +5,12 @@ from sqlalchemy.orm import Session
 
 def seed_database(db: Session = None):
     close_at_end = False
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     if db is None:
-        Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         close_at_end = True
 
-    # Clear existing data to ensure clean seed
-    try:
-        db.query(models.MentorReview).delete()
-        db.query(models.RubricScore).delete()
-        db.query(models.Presentation).delete()
-        db.query(models.Reflection).delete()
-        db.query(models.Prototype).delete()
-        db.query(models.DesignDecision).delete()
-        db.query(models.ProjectLog).delete()
-        db.query(models.Project).delete()
-        db.query(models.User).delete()
-        db.commit()
-    except Exception as e:
-        db.rollback()
 
     hashed_pw = auth.get_password_hash("password123")
 
@@ -304,6 +291,17 @@ def seed_database(db: Session = None):
             )
             db.add(pres_obj)
 
+        # Add Git Commits (Micro-commit trajectory)
+        if len(pdata["logs"]) > 0:
+            c1 = models.Commit(project_id=proj.id, commit_hash="a1b2c3d", message="feat: initial project setup and scaffolding", author_name="Learner", timestamp="2026-08-01T10:15:00", lines_added=120, lines_deleted=0, files_changed=3, is_bulk_import=False)
+            c2 = models.Commit(project_id=proj.id, commit_hash="b2c3d4e", message="fix: resolve memory leak in worker loop", author_name="Learner", timestamp="2026-08-05T14:30:00", lines_added=45, lines_deleted=12, files_changed=2, is_bulk_import=False)
+            c3 = models.Commit(project_id=proj.id, commit_hash="c3d4e5f", message="refactor: implement lock-free ring buffer", author_name="Learner", timestamp="2026-08-10T16:45:00", lines_added=88, lines_deleted=30, files_changed=4, is_bulk_import=False)
+            db.add_all([c1, c2, c3])
+        elif pdata["title"] == "Crypto Portfolio Tracker SaaS":
+            # Bulk import single dump edge case
+            c_bulk = models.Commit(project_id=proj.id, commit_hash="f9e8d7c", message="initial commit: uploaded full zip codebase", author_name="Learner", timestamp="2026-08-20T23:55:00", lines_added=2400, lines_deleted=0, files_changed=32, is_bulk_import=True)
+            db.add(c_bulk)
+
         db.commit()
 
         # Calculate initial deterministic rubric score
@@ -322,7 +320,8 @@ def seed_database(db: Session = None):
 
     if close_at_end:
         db.close()
-    print("Database successfully seeded with 2 Mentors, 5 Learners, and 10 Projects!")
+    print("Database successfully seeded with 2 Mentors, 5 Learners, 10 Projects, and Git Commits!")
 
 if __name__ == "__main__":
     seed_database()
+

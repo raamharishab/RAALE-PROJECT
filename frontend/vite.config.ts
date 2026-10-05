@@ -12,5 +12,9 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  optimizeDeps: {
+    include: ['recharts', 'd3-shape']
   }
 })
+

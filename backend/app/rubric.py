@@ -1,3 +1,4 @@
+import json
 from sqlalchemy.orm import Session
 from app import models
 
@@ -6,14 +7,32 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
     Deterministic rule-based rubric evaluation for ProjectProof.
     Does NOT use AI.
     Strictly follows exact weightings, scoring criteria, evidence completeness, gap calculation, and authenticity status.
+    Now includes Commit Trajectory Cadence and Multi-Factor Anomaly Detection.
     """
     logs = project.logs or []
     decisions = project.design_decisions or []
     prototypes = project.prototypes or []
     reflections = project.reflections or []
     presentations = project.presentations or []
+    commits = project.commits or []
 
     existing_rubric = db.query(models.RubricScore).filter(models.RubricScore.project_id == project.id).first()
+
+    # Calculate Commit Cadence Score (0-100)
+    num_commits = len(commits)
+    bulk_commits = sum(1 for c in commits if c.is_bulk_import or (c.lines_added and c.lines_added > 500))
+    commit_dates = set(c.timestamp.split("T")[0] for c in commits if c.timestamp)
+
+    if num_commits == 0:
+        commit_cadence_score = 0.0
+    elif bulk_commits > 0 and num_commits <= 2:
+        commit_cadence_score = 30.0  # Bulk single-dump penalty
+    elif len(commit_dates) >= 3 and num_commits >= 5:
+        commit_cadence_score = 95.0
+    elif len(commit_dates) >= 2 or num_commits >= 3:
+        commit_cadence_score = 75.0
+    else:
+        commit_cadence_score = 50.0
 
     # Check mentor overrides if present
     if existing_rubric and existing_rubric.overridden_by_mentor:
@@ -25,7 +44,6 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
         presentation_score = existing_rubric.presentation_score
     else:
         # 1. Problem Understanding (Max 100)
-        # Statement (50), Objective (25), Tech (25)
         pu_score = 0.0
         if project.problem_statement and len(project.problem_statement.strip()) >= 15:
             pu_score += 50.0
@@ -35,28 +53,32 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
             pu_score += 25.0
         problem_understanding = min(100.0, pu_score)
 
-        # 2. Problem Solving Process (Max 100)
-        # Based on logs count and completeness
+        # 2. Problem Solving Process (Max 100) - Combines logs + commit cadence
         ps_score = 0.0
         num_logs = len(logs)
         if num_logs == 1:
             ps_score = 40.0
         elif num_logs == 2:
-            ps_score = 70.0
+            ps_score = 65.0
         elif num_logs >= 3:
-            ps_score = 90.0
+            ps_score = 85.0
 
-        # Check detail quality in logs
         detailed_logs = sum(
             1 for log in logs 
             if len(log.problem_encountered or "") > 5 and len(log.action_taken or "") > 5 and len(log.result or "") > 5
         )
         if detailed_logs >= 2:
             ps_score += 10.0
+
+        # Incorporate commit cadence (up to +15 pts)
+        if commit_cadence_score >= 75:
+            ps_score += 15.0
+        elif commit_cadence_score >= 40:
+            ps_score += 5.0
+
         problem_solving = min(100.0, ps_score)
 
         # 3. Technical Decisions (Max 100)
-        # Based on design decisions
         td_score = 0.0
         num_dec = len(decisions)
         if num_dec == 1:
@@ -74,7 +96,6 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
 
         # 4. Evidence Consistency (Max 100)
         ec_score = 100.0
-        # Inconsistency penalties
         has_presentation = len(presentations) > 0
         has_prototypes = len(prototypes) > 0
         has_reflections = len(reflections) > 0
@@ -93,9 +114,12 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
         if has_reflections and num_logs == 0 and num_dec == 0:
             ec_score -= 20.0
 
+        if has_presentation and num_commits == 0 and project.github_url:
+            ec_score -= 15.0
+
         evidence_consistency = max(0.0, min(100.0, ec_score))
 
-        # 5. Reflection Quality (Max 100)
+        # 5. Reflection Quality (Max 100) - Language Neutral (No grammar penalties!)
         rq_score = 0.0
         if reflections:
             r = reflections[0]
@@ -121,7 +145,6 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
     evidence_completeness = (completed_cats / 5.0) * 100.0
 
     # 8. Process Score Calculation
-    # Weights: PU 20%, PS 30%, TD 15%, EC 15%, RQ 10%, Pres 10%
     process_score = round(
         (problem_understanding * 0.20) +
         (problem_solving * 0.30) +
@@ -135,12 +158,21 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
     # 9. Presentation / Process Gap
     gap = round(presentation_score - process_score, 1)
 
-    # 10. Authenticity Status Determination
-    # Strong Evidence: Process Score >= 75 and completeness >= 75%
-    # Moderate Evidence: Process Score >= 60 and completeness >= 50%
-    # Needs Review: Large gap (> 20) OR evidence consistency < 60 OR high presentation with weak process
-    # Insufficient Evidence: Very little evidence (completeness < 50% or process score low)
-    if gap > 20 or evidence_consistency < 60 or (presentation_score >= 85 and process_score < 65):
+    # 10. Multi-Factor Anomaly Detection
+    anomaly_flags_list = []
+    if presentation_score >= 85 and process_score < 60:
+        anomaly_flags_list.append("PRESENTATION_POLISH_ANOMALY")
+    if bulk_commits > 0 and num_logs <= 1:
+        anomaly_flags_list.append("BULK_CODE_DUMP_ANOMALY")
+    if reflections and reflection_quality >= 80 and (evidence_completeness >= 60):
+        anomaly_flags_list.append("LANGUAGE_NEUTRAL_PASS")
+    if num_commits == 0 and project.github_url:
+        anomaly_flags_list.append("MISSING_COMMIT_TRAIL")
+
+    anomaly_flags_json = json.dumps(anomaly_flags_list)
+
+    # 11. Authenticity Status Determination
+    if gap > 20 or evidence_consistency < 60 or "PRESENTATION_POLISH_ANOMALY" in anomaly_flags_list or "BULK_CODE_DUMP_ANOMALY" in anomaly_flags_list:
         authenticity_status = "NEEDS REVIEW"
     elif process_score >= 75 and evidence_completeness >= 75:
         authenticity_status = "STRONG EVIDENCE"
@@ -158,10 +190,12 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
             evidence_consistency=evidence_consistency,
             reflection_quality=reflection_quality,
             presentation_score=presentation_score,
+            commit_cadence_score=commit_cadence_score,
             process_score=process_score,
             gap=gap,
             evidence_completeness=evidence_completeness,
             authenticity_status=authenticity_status,
+            anomaly_flags=anomaly_flags_json,
             overridden_by_mentor=False
         )
         db.add(existing_rubric)
@@ -174,11 +208,14 @@ def calculate_rubric_scores(project: models.Project, db: Session) -> models.Rubr
             existing_rubric.reflection_quality = reflection_quality
             existing_rubric.presentation_score = presentation_score
 
+        existing_rubric.commit_cadence_score = commit_cadence_score
         existing_rubric.process_score = process_score
         existing_rubric.gap = gap
         existing_rubric.evidence_completeness = evidence_completeness
         existing_rubric.authenticity_status = authenticity_status
+        existing_rubric.anomaly_flags = anomaly_flags_json
 
     db.commit()
     db.refresh(existing_rubric)
     return existing_rubric
+

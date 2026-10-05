@@ -106,6 +106,27 @@ class PresentationResponse(PresentationCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
+# --- Commit Schemas ---
+class CommitCreate(BaseModel):
+    commit_hash: str
+    message: str
+    author_name: str
+    timestamp: str
+    lines_added: Optional[int] = 0
+    lines_deleted: Optional[int] = 0
+    files_changed: Optional[int] = 0
+    is_bulk_import: Optional[bool] = False
+
+class CommitResponse(CommitCreate):
+    id: int
+    project_id: int
+    created_at: datetime.datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CommitSyncRequest(BaseModel):
+    commits: List[CommitCreate]
+
 # --- Rubric Schemas ---
 class RubricScoreResponse(BaseModel):
     id: int
@@ -116,10 +137,12 @@ class RubricScoreResponse(BaseModel):
     evidence_consistency: float
     reflection_quality: float
     presentation_score: float
+    commit_cadence_score: Optional[float] = 0.0
     process_score: float
     gap: float
     evidence_completeness: float
     authenticity_status: str
+    anomaly_flags: Optional[str] = "[]"
     overridden_by_mentor: bool
     override_reason: Optional[str] = None
     created_at: datetime.datetime
@@ -153,6 +176,39 @@ class MentorReviewResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+# --- Benchmark & Explainability Schemas ---
+class BenchmarkRunRequest(BaseModel):
+    sample_size: Optional[int] = 50
+    include_edge_cases: Optional[bool] = True
+
+class BenchmarkResultResponse(BaseModel):
+    id: int
+    name: str
+    total_projects: int
+    baseline_avg_score: float
+    proposed_avg_score: float
+    kappa_agreement: float
+    presentation_bias_reduction: float
+    grading_time_reduction: float
+    false_flag_rate: float
+    archetype_breakdown: Optional[dict] = None
+    error_analysis: Optional[dict] = None
+    created_at: datetime.datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ExplainabilityResponse(BaseModel):
+    project_id: int
+    language: str
+    summary: str
+    process_score: float
+    presentation_score: float
+    gap: float
+    authenticity_status: str
+    rubric_breakdown: dict
+    anomaly_warnings: List[str]
+    recommendations: List[str]
+
 # --- Project Schemas ---
 class ProjectCreate(BaseModel):
     title: str
@@ -183,7 +239,9 @@ class ProjectResponse(BaseModel):
     prototypes: List[PrototypeResponse] = []
     reflections: List[ReflectionResponse] = []
     presentations: List[PresentationResponse] = []
+    commits: List[CommitResponse] = []
     rubric_score: Optional[RubricScoreResponse] = None
     mentor_reviews: List[MentorReviewResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+

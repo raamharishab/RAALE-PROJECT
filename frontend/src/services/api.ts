@@ -164,5 +164,57 @@ export const api = {
       throw new Error(err.detail || 'Failed to override rubric score');
     }
     return res.json();
+  },
+
+  // Commits
+  async addCommit(projectId: number, data: any) {
+    const res = await fetch(`/api/v1/projects/${projectId}/commits`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Failed to add git commit');
+    return res.json();
+  },
+
+  async syncCommits(projectId: number, commits: any[]) {
+    const res = await fetch(`/api/v1/projects/${projectId}/commits/sync`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ commits })
+    });
+    if (!res.ok) throw new Error('Failed to sync git commits');
+    return res.json();
+  },
+
+  // Benchmark & Experiments
+  async runBenchmarkExperiment(sampleSize: number = 50) {
+    const res = await fetch(`/api/v1/benchmarks/run-experiment`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ sample_size: sampleSize })
+    });
+    if (!res.ok) throw new Error('Failed to run benchmark experiment');
+    return res.json();
+  },
+
+  async getLatestBenchmark() {
+    const res = await fetch(`/api/v1/benchmarks/latest`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch benchmark results');
+    return res.json();
+  },
+
+  async getEdgeCases() {
+    const res = await fetch(`/api/v1/benchmarks/edge-cases`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch edge case simulations');
+    return res.json();
+  },
+
+  // Explainability
+  async getExplainability(projectId: number, lang: string = 'en') {
+    const res = await fetch(`/api/v1/projects/${projectId}/explainability?lang=${lang}`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch explainability breakdown');
+    return res.json();
   }
 };
+

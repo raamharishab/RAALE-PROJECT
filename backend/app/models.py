@@ -38,8 +38,26 @@ class Project(Base):
     prototypes = relationship("Prototype", back_populates="project", cascade="all, delete-orphan")
     reflections = relationship("Reflection", back_populates="project", cascade="all, delete-orphan")
     presentations = relationship("Presentation", back_populates="project", cascade="all, delete-orphan")
+    commits = relationship("Commit", back_populates="project", cascade="all, delete-orphan")
     rubric_score = relationship("RubricScore", back_populates="project", uselist=False, cascade="all, delete-orphan")
     mentor_reviews = relationship("MentorReview", back_populates="project", cascade="all, delete-orphan")
+
+class Commit(Base):
+    __tablename__ = "commits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    commit_hash = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    author_name = Column(String, nullable=False)
+    timestamp = Column(String, nullable=False)  # ISO datetime string
+    lines_added = Column(Integer, default=0)
+    lines_deleted = Column(Integer, default=0)
+    files_changed = Column(Integer, default=0)
+    is_bulk_import = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    project = relationship("Project", back_populates="commits")
 
 class ProjectLog(Base):
     __tablename__ = "project_logs"
@@ -127,10 +145,12 @@ class RubricScore(Base):
     evidence_consistency = Column(Float, default=0.0)   # 15%
     reflection_quality = Column(Float, default=0.0)     # 10%
     presentation_score = Column(Float, default=0.0)     # 10%
+    commit_cadence_score = Column(Float, default=0.0)   # Auxiliary commit cadence metric
     process_score = Column(Float, default=0.0)
     gap = Column(Float, default=0.0)
     evidence_completeness = Column(Float, default=0.0)   # Percentage e.g. 80.0
     authenticity_status = Column(String, default="INSUFFICIENT EVIDENCE")
+    anomaly_flags = Column(Text, nullable=True)         # JSON list of flags e.g. ["BULK_CODE_DUMP"]
     overridden_by_mentor = Column(Boolean, default=False)
     override_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -151,3 +171,18 @@ class MentorReview(Base):
 
     project = relationship("Project", back_populates="mentor_reviews")
     mentor = relationship("User", back_populates="mentor_reviews")
+
+class BenchmarkExperiment(Base):
+    __tablename__ = "benchmark_experiments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    total_projects = Column(Integer, nullable=False)
+    baseline_avg_score = Column(Float, nullable=False)
+    proposed_avg_score = Column(Float, nullable=False)
+    kappa_agreement = Column(Float, nullable=False)
+    presentation_bias_reduction = Column(Float, nullable=False)
+    grading_time_reduction = Column(Float, nullable=False)
+    false_flag_rate = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

@@ -22,7 +22,7 @@ def add_project_log(
     current_user: models.User = Depends(auth.require_learner)
 ):
     project = check_project_access(project_id, current_user, db)
-    log = models.ProjectLog(project_id=project.id, **log_in.dict())
+    log = models.ProjectLog(project_id=project.id, **log_in.model_dump())
     db.add(log)
     db.commit()
     db.refresh(log)
@@ -37,7 +37,7 @@ def add_design_decision(
     current_user: models.User = Depends(auth.require_learner)
 ):
     project = check_project_access(project_id, current_user, db)
-    decision = models.DesignDecision(project_id=project.id, **dec_in.dict())
+    decision = models.DesignDecision(project_id=project.id, **dec_in.model_dump())
     db.add(decision)
     db.commit()
     db.refresh(decision)
@@ -52,7 +52,7 @@ def add_prototype(
     current_user: models.User = Depends(auth.require_learner)
 ):
     project = check_project_access(project_id, current_user, db)
-    proto = models.Prototype(project_id=project.id, **proto_in.dict())
+    proto = models.Prototype(project_id=project.id, **proto_in.model_dump())
     db.add(proto)
     db.commit()
     db.refresh(proto)
@@ -71,13 +71,13 @@ def add_reflection(
     # Overwrite existing or create new reflection
     existing = db.query(models.Reflection).filter(models.Reflection.project_id == project_id).first()
     if existing:
-        for k, v in refl_in.dict().items():
+        for k, v in refl_in.model_dump().items():
             setattr(existing, k, v)
         db.commit()
         db.refresh(existing)
         refl = existing
     else:
-        refl = models.Reflection(project_id=project.id, **refl_in.dict())
+        refl = models.Reflection(project_id=project.id, **refl_in.model_dump())
         db.add(refl)
         db.commit()
         db.refresh(refl)
@@ -105,10 +105,11 @@ def add_presentation(
         db.refresh(existing)
         pres = existing
     else:
-        pres = models.Presentation(project_id=project.id, **pres_in.dict())
+        pres = models.Presentation(project_id=project.id, **pres_in.model_dump())
         db.add(pres)
         db.commit()
         db.refresh(pres)
 
     calculate_rubric_scores(project, db)
     return pres
+

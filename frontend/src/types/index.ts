@@ -8,6 +8,20 @@ export interface User {
   created_at: string;
 }
 
+export interface Commit {
+  id: number;
+  project_id: number;
+  commit_hash: string;
+  message: string;
+  author_name: string;
+  timestamp: string;
+  lines_added: number;
+  lines_deleted: number;
+  files_changed: number;
+  is_bulk_import: boolean;
+  created_at: string;
+}
+
 export interface ProjectLog {
   id: number;
   project_id: number;
@@ -83,10 +97,12 @@ export interface RubricScore {
   evidence_consistency: number;
   reflection_quality: number;
   presentation_score: number;
+  commit_cadence_score?: number;
   process_score: number;
   gap: number;
   evidence_completeness: number;
   authenticity_status: AuthenticityStatus;
+  anomaly_flags?: string;
   overridden_by_mentor: boolean;
   override_reason?: string;
   created_at: string;
@@ -101,6 +117,43 @@ export interface MentorReview {
   status_change?: string;
   override_scores?: string;
   created_at: string;
+}
+
+export interface BenchmarkResult {
+  id: number;
+  name: string;
+  total_projects: number;
+  baseline_avg_score: number;
+  proposed_avg_score: number;
+  kappa_agreement: number;
+  presentation_bias_reduction: number;
+  grading_time_reduction: number;
+  false_flag_rate: number;
+  archetype_breakdown?: Record<string, number>;
+  error_analysis?: Record<string, { percentage: number; description: string; mitigation: string }>;
+  created_at: string;
+}
+
+export interface EdgeCaseSimulation {
+  id: number;
+  title: string;
+  scenario: string;
+  baseline_outcome: string;
+  proposed_outcome: string;
+  why_appropriate: string;
+}
+
+export interface ExplainabilitySummary {
+  project_id: number;
+  language: string;
+  summary: string;
+  process_score: number;
+  presentation_score: number;
+  gap: number;
+  authenticity_status: string;
+  rubric_breakdown: Record<string, { score: number; weight: string }>;
+  anomaly_warnings: string[];
+  recommendations: string[];
 }
 
 export type ProjectStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'NEEDS_CLARIFICATION';
@@ -125,6 +178,8 @@ export interface Project {
   prototypes: Prototype[];
   reflections: Reflection[];
   presentations: Presentation[];
+  commits: Commit[];
   rubric_score?: RubricScore;
   mentor_reviews: MentorReview[];
 }
+

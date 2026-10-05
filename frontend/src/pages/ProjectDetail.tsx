@@ -6,10 +6,11 @@ import { StatusBadge } from '../components/StatusBadge';
 import { Timeline } from '../components/Timeline';
 import { Navbar } from '../components/Navbar';
 import { EthicsModal } from '../components/EthicsModal';
+import { ExplainabilityDrawer } from '../components/ExplainabilityDrawer';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, FileText, Compass, Layers, Brain, Monitor, AlertTriangle,
-  CheckCircle2, Plus, Edit3, Send, ShieldAlert, Award, MessageSquare
+  CheckCircle2, Plus, Edit3, Send, ShieldAlert, Award, MessageSquare, GitBranch, HelpCircle, Code
 } from 'lucide-react';
 
 export const ProjectDetail: React.FC = () => {
@@ -22,6 +23,7 @@ export const ProjectDetail: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [showEthics, setShowEthics] = useState<boolean>(false);
+  const [showExplainability, setShowExplainability] = useState<boolean>(false);
 
   // Modals for adding evidence & mentor review
   const [showAddLog, setShowAddLog] = useState<boolean>(false);
@@ -29,7 +31,11 @@ export const ProjectDetail: React.FC = () => {
   const [showAddPrototype, setShowAddPrototype] = useState<boolean>(false);
   const [showAddReflection, setShowAddReflection] = useState<boolean>(false);
   const [showAddPresentation, setShowAddPresentation] = useState<boolean>(false);
+  const [showAddCommit, setShowAddCommit] = useState<boolean>(false);
   const [showMentorOverride, setShowMentorOverride] = useState<boolean>(false);
+
+  const [commitForm, setCommitForm] = useState({ commit_hash: '', message: '', author_name: 'Learner', timestamp: new Date().toISOString(), lines_added: 50, lines_deleted: 5, files_changed: 2, is_bulk_import: false });
+
 
   // Form states
   const [logForm, setLogForm] = useState({ date: new Date().toISOString().substring(0, 10), task: '', problem_encountered: '', action_taken: '', result: '', next_step: '' });
@@ -222,6 +228,7 @@ export const ProjectDetail: React.FC = () => {
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'timeline', label: 'Evidence Timeline' },
+    { key: 'commits', label: `Git Commits (${(project.commits || []).length})` },
     { key: 'logs', label: `Project Logs (${project.logs.length})` },
     { key: 'decisions', label: `Design Decisions (${project.design_decisions.length})` },
     { key: 'prototypes', label: `Prototypes (${project.prototypes.length})` },
@@ -254,13 +261,21 @@ export const ProjectDetail: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1 font-mono">Learner: {project.learner_name || 'Student'}</p>
           </div>
 
-          {/* Authenticity Badge */}
+          {/* Authenticity Badge & Explainability Button */}
           {rubric && (
             <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowExplainability(true)}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-semibold transition"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span>Explainability Breakdown</span>
+              </button>
               <StatusBadge status={rubric.authenticity_status} type="authenticity" />
             </div>
           )}
         </div>
+
 
         {/* Presentation / Process Gap Warning Alert */}
         {rubric && rubric.gap > 20 && (
@@ -389,10 +404,93 @@ export const ProjectDetail: React.FC = () => {
           </div>
         )}
 
+        {/* 2.5. GIT COMMITS TAB */}
+        {activeTab === 'commits' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 p-5 rounded-2xl border border-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center space-x-2">
+                  <GitBranch className="w-5 h-5 text-purple-400" />
+                  <span>Git Micro-Commit Trajectory & Cadence</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">Tracks development frequency, micro-commit cadence, and flags single massive code dumps.</p>
+              </div>
+
+              {isOwner && (
+                <button
+                  onClick={() => setShowAddCommit(true)}
+                  className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-lg shadow-purple-500/20 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Sync / Add Micro-Commit</span>
+                </button>
+              )}
+            </div>
+
+            {/* Commit Cadence Metric Card */}
+            {rubric && (
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-mono uppercase font-bold text-purple-400">Commit Cadence Score</span>
+                  <div className="text-2xl font-extrabold text-white mt-1">
+                    {rubric.commit_cadence_score || 0.0} <span className="text-xs text-slate-400 font-normal">/ 100</span>
+                  </div>
+                </div>
+                <div className="text-right text-xs text-slate-400">
+                  <p>Total Commits: <strong className="text-white">{(project.commits || []).length}</strong></p>
+                  <p>Bulk Single Dumps: <strong className="text-amber-400">{(project.commits || []).reduce((acc, c) => acc + (c.is_bulk_import ? 1 : 0), 0)}</strong></p>
+
+                </div>
+              </div>
+            )}
+
+            {/* Commits List */}
+            {(!project.commits || project.commits.length === 0) ? (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
+                <GitBranch className="w-10 h-10 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-semibold text-slate-300">No Git Commits Recorded Yet</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Sync repository commits or submit timestamped micro-commits to build process evidence.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {project.commits.map((c) => (
+                  <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono text-xs text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                          {c.commit_hash.substring(0, 7)}
+                        </span>
+                        <h4 className="text-sm font-semibold text-white">{c.message}</h4>
+                        {c.is_bulk_import && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono">
+                            BULK CODE DUMP
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 font-mono">
+                        Author: {c.author_name} • Date: {new Date(c.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-3 text-xs font-mono shrink-0">
+                      <span className="text-emerald-400">+{c.lines_added}</span>
+                      <span className="text-rose-400">-{c.lines_deleted}</span>
+                      <span className="text-slate-400">{c.files_changed} files</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 3. PROJECT LOGS TAB */}
         {activeTab === 'logs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
+
               <h3 className="text-base font-bold text-slate-100">Project Development Logs</h3>
               {isOwner && (
                 <button
@@ -928,6 +1026,14 @@ export const ProjectDetail: React.FC = () => {
       </main>
 
       <EthicsModal isOpen={showEthics} onClose={() => setShowEthics(false)} />
+      {project && (
+        <ExplainabilityDrawer
+          projectId={project.id}
+          isOpen={showExplainability}
+          onClose={() => setShowExplainability(false)}
+        />
+      )}
     </div>
   );
+
 };

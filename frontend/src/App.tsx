@@ -9,6 +9,8 @@ import { MentorDashboard } from './pages/MentorDashboard';
 import { ProjectCreate } from './pages/ProjectCreate';
 import { ProjectDetail } from './pages/ProjectDetail';
 import { EthicsPage } from './pages/EthicsPage';
+import { BenchmarkPage } from './pages/BenchmarkPage';
+import { EdgeCasesPage } from './pages/EdgeCasesPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRole?: 'learner' | 'mentor' }> = ({
   children,
@@ -48,6 +50,23 @@ export const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/ethics" element={<EthicsPage />} />
+
+            <Route
+              path="/benchmark"
+              element={
+                <ProtectedRoute>
+                  <BenchmarkPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/edge-cases"
+              element={
+                <ProtectedRoute>
+                  <EdgeCasesPage />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/dashboard"
@@ -91,3 +110,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+
